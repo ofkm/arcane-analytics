@@ -1,0 +1,25 @@
+# JetBrains
+**/.idea
+
+# Output
+.output
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Application specific
+/data
+
+# Misc
+.DS_Store

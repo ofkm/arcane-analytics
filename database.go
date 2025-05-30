@@ -20,6 +20,22 @@ type InstancesHistory struct {
 	Count int    `json:"count"`
 }
 
+func DoesInstanceExist(parentCtx context.Context, db *sql.DB, instanceID string) (bool, error) {
+	const query = `
+	SELECT EXISTS(SELECT 1 FROM instances WHERE id = ?)
+	`
+
+	ctx, cancel := context.WithTimeout(parentCtx, 10*time.Second)
+	defer cancel()
+	var exists bool
+	err := db.QueryRowContext(ctx, query, instanceID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check instance existence: %w", err)
+	}
+
+	return exists, nil
+}
+
 func UpsertInstance(parentCtx context.Context, db *sql.DB, instanceID, version string) error {
 	now := time.Now()
 

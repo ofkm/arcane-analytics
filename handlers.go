@@ -4,7 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -30,9 +33,16 @@ func HeartbeatHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
+		instanceExists, err := DoesInstanceExist(r.Context(), db, req.InstanceID)
+		if err != nil {
+			log.Printf("Error checking instance existence: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
 		// Check rate limit
-		clientIP := r.RemoteAddr
-		if !IsAllowedToCreateHeartbeat(clientIP) {
+		clientIP := getClientIP(r)
+		if !IsAllowedToCreateHeartbeat(clientIP, instanceExists) {
 			http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 			return
 		}
@@ -104,4 +114,30 @@ func StatsHandler(db *sql.DB) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(data)
 	}
+}
+
+func getClientIP(r *http.Request) string {
+	trustProxy := os.Getenv("TRUST_PROXY") == "true"
+	if trustProxy {
+		xForwardedFor := r.Header.Get("X-Forwarded-For")
+		if xForwardedFor != "" {
+			ips := strings.Split(xForwardedFor, ",")
+			clientIP := strings.TrimSpace(ips[0])
+			if clientIP != "" {
+				return clientIP
+			}
+		}
+
+		cfConnectingIP := r.Header.Get("CF-Connecting-IP")
+		if cfConnectingIP != "" {
+			return cfConnectingIP
+		}
+	}
+
+	// Fall back to RemoteAddr
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return ip
 }
